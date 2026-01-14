@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, Download, FileText, Loader2, Package } from 'lucide-react';
 
 interface ConvertedFile {
   name: string;
@@ -105,133 +104,137 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-6 shadow-lg">
-              <FileText className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-5xl font-bold text-gray-900 mb-3">
-              PDF to PNG
-            </h1>
-            <p className="text-lg text-gray-600">
-              PDFファイルを高品質なPNG画像に変換
-            </p>
-          </div>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-2xl mx-auto px-6 py-16">
+        {/* Header */}
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
+            PDF to PNG
+          </h1>
+          <p className="mt-2 text-gray-500 text-lg">
+            PDFファイルをPNG画像に変換
+          </p>
+        </div>
 
-          {/* Main Card */}
-          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
-            {/* Upload Area */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-3 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 ${isDragging
-                  ? 'border-purple-500 bg-purple-50'
-                  : 'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-indigo-50/50'
-                }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <Upload className={`w-16 h-16 mx-auto mb-4 ${isDragging ? 'text-purple-500' : 'text-gray-400'}`} />
-              <p className="text-xl font-semibold text-gray-700 mb-2">
-                PDFファイルをドラッグ&ドロップ
+        {/* Upload Area */}
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`
+            border border-dashed rounded-lg p-12 text-center cursor-pointer
+            transition-colors duration-150
+            ${isDragging 
+              ? 'border-gray-900 bg-gray-50' 
+              : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+            }
+          `}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <div className="text-4xl mb-4">📄</div>
+          <p className="text-gray-700 font-medium">
+            ドラッグ&ドロップ、またはクリックして選択
+          </p>
+          <p className="text-gray-400 text-sm mt-1">PDF形式のみ</p>
+        </div>
+
+        {/* Selected File */}
+        {file && (
+          <div className="mt-4 px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">📎</span>
+                <span className="text-gray-900 font-medium">{file.name}</span>
+              </div>
+              <span className="text-gray-400 text-sm">
+                {(file.size / 1024 / 1024).toFixed(2)} MB
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Convert Button */}
+        <button
+          onClick={handleConvert}
+          disabled={!file || converting}
+          className={`
+            w-full mt-6 py-3 rounded-lg font-medium transition-all duration-150
+            ${!file || converting
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-950'
+            }
+          `}
+        >
+          {converting ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              変換中...
+            </span>
+          ) : (
+            '変換する'
+          )}
+        </button>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mt-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Success Result */}
+        {result && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-gray-500 text-sm">
+                ✓ {result.message}
               </p>
-              <p className="text-gray-500 mb-4">または</p>
-              <div className="inline-block px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium">
-                ファイルを選択
-              </div>
+              <button
+                onClick={handleDownloadAll}
+                className="text-sm text-gray-600 hover:text-gray-900 underline underline-offset-2"
+              >
+                すべてダウンロード (.zip)
+              </button>
             </div>
 
-            {/* Selected File */}
-            {file && (
-              <div className="mt-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-indigo-600" />
-                  <span className="text-gray-700 font-medium">{file.name}</span>
-                  <span className="text-sm text-gray-500 ml-auto">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Convert Button */}
-            <button
-              onClick={handleConvert}
-              disabled={!file || converting}
-              className="w-full mt-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
-            >
-              {converting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  変換中...
-                </>
-              ) : (
-                <>変換する</>
-              )}
-            </button>
-
-            {/* Error Message */}
-            {error && (
-              <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-700 font-medium">{error}</p>
-              </div>
-            )}
-
-            {/* Success Result */}
-            {result && (
-              <div className="mt-6">
-                <div className="p-4 bg-green-50 border border-green-200 rounded-xl mb-6">
-                  <p className="text-green-800 font-semibold text-center">
-                    ✓ {result.message}
-                  </p>
-                </div>
-
-                {/* Download All Button */}
-                <button
-                  onClick={handleDownloadAll}
-                  className="w-full mb-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            <div className="border border-gray-200 rounded-lg divide-y divide-gray-200">
+              {result.files.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
                 >
-                  <Package className="w-5 h-5" />
-                  すべてダウンロード (ZIP)
-                </button>
-
-                {/* Individual Files */}
-                <div className="space-y-3">
-                  {result.files.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="text-gray-700 font-medium">{file.name}</span>
-                      <a
-                        href={file.url}
-                        download
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                      >
-                        <Download className="w-4 h-4" />
-                        ダウンロード
-                      </a>
-                    </div>
-                  ))}
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-400">🖼️</span>
+                    <span className="text-gray-700">{file.name}</span>
+                  </div>
+                  <a
+                    href={file.url}
+                    download
+                    className="text-sm text-gray-500 hover:text-gray-900 underline underline-offset-2"
+                  >
+                    ダウンロード
+                  </a>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Footer */}
-          <div className="text-center mt-8 text-gray-500 text-sm">
-            <p>PDFの各ページを個別のPNG画像に変換します</p>
-          </div>
+        {/* Footer */}
+        <div className="mt-16 pt-8 border-t border-gray-100">
+          <p className="text-gray-400 text-sm text-center">
+            PDFの各ページを個別のPNG画像に変換します
+          </p>
         </div>
       </div>
     </div>
