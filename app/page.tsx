@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { FileText, Paperclip, Image, Upload, Download } from 'lucide-react';
 
 interface ConvertedFile {
   name: string;
@@ -138,7 +139,7 @@ export default function Home() {
             onChange={handleFileSelect}
             className="hidden"
           />
-          <div className="text-4xl mb-4">📄</div>
+          <FileText className="w-10 h-10 mx-auto mb-4 text-gray-400" strokeWidth={1.5} />
           <p className="text-gray-700 font-medium">
             ドラッグ&ドロップ、またはクリックして選択
           </p>
@@ -150,7 +151,7 @@ export default function Home() {
           <div className="mt-4 px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-lg">📎</span>
+                <Paperclip className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
                 <span className="text-gray-900 font-medium">{file.name}</span>
               </div>
               <span className="text-gray-400 text-sm">
@@ -197,13 +198,14 @@ export default function Home() {
           <div className="mt-8">
             <div className="flex items-center justify-between mb-4">
               <p className="text-gray-500 text-sm">
-                ✓ {result.message}
+                {result.message}
               </p>
               <button
                 onClick={handleDownloadAll}
-                className="text-sm text-gray-600 hover:text-gray-900 underline underline-offset-2"
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 underline underline-offset-2"
               >
-                すべてダウンロード (.zip)
+                <Download className="w-3 h-3" strokeWidth={1.5} />
+                すべてダウンロード
               </button>
             </div>
 
@@ -214,7 +216,7 @@ export default function Home() {
                   className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-gray-400">🖼️</span>
+                    <Image className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
                     <span className="text-gray-700">{file.name}</span>
                   </div>
                   <a
