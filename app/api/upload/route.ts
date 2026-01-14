@@ -2,16 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { createCanvas } from 'canvas';
 
-// Configure PDF.js worker
-if (typeof window === 'undefined') {
-  const pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
-  // @ts-ignore
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
-}
-
+// Dynamic import for PDF.js to avoid build issues
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -50,11 +42,21 @@ export async function POST(request: NextRequest) {
     const baseName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9-_]/g, '_');
 
     try {
-      // Load PDF with PDF.js
+      // Dynamically import PDF.js and Canvas
+      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const { createCanvas } = await import('canvas');
+      
+      // Disable worker for server-side rendering
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+
+      // Load PDF
       const loadingTask = pdfjsLib.getDocument({
         data: new Uint8Array(buffer),
         useSystemFonts: true,
+        isEvalSupported: false,
+        useWorkerFetch: false,
       });
+      
       const pdfDocument = await loadingTask.promise;
       const numPages = pdfDocument.numPages;
 
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
         const context = canvas.getContext('2d');
 
         const renderContext = {
-          canvasContext: context,
+          canvasContext: context as any,
           viewport: viewport,
         };
 
@@ -100,6 +102,7 @@ export async function POST(request: NextRequest) {
       if (existsSync(uploadPath)) {
         await unlink(uploadPath);
       }
+      console.error('PDF conversion error:', error);
       throw new Error(
         `PDF変換に失敗しました: ${(error as Error).message}`
       );
