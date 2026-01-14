@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir, readdir, unlink } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { createCanvas } from 'canvas';
 
-const execAsync = promisify(exec);
+// Configure PDF.js worker
+if (typeof window === 'undefined') {
+  const pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+  // @ts-ignore
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,24 +47,44 @@ export async function POST(request: NextRequest) {
     const outputDir = join(outputBaseDir, `${timestamp}`);
     await mkdir(outputDir, { recursive: true });
 
-    const baseName = file.name.replace('.pdf', '');
+    const baseName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9-_]/g, '_');
 
     try {
-      // Convert PDF to PNG using pdftoppm
-      await execAsync(`pdftoppm -png "${uploadPath}" "${join(outputDir, baseName)}"`);
+      // Load PDF with PDF.js
+      const loadingTask = pdfjsLib.getDocument({
+        data: new Uint8Array(buffer),
+        useSystemFonts: true,
+      });
+      const pdfDocument = await loadingTask.promise;
+      const numPages = pdfDocument.numPages;
 
-      // Get converted files
-      const files = await readdir(outputDir);
-      const pngFiles = files
-        .filter(f => f.endsWith('.png'))
-        .sort()
-        .map(f => ({
-          name: f,
-          url: `/api/download/${timestamp}/${f}`,
-        }));
+      const pngFiles = [];
 
-      if (pngFiles.length === 0) {
-        throw new Error('PNG変換に失敗しました');
+      // Convert each page to PNG
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdfDocument.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2.0 });
+
+        const canvas = createCanvas(viewport.width, viewport.height);
+        const context = canvas.getContext('2d');
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+
+        await page.render(renderContext).promise;
+
+        // Save as PNG
+        const filename = `${baseName}-${pageNum}.png`;
+        const outputPath = join(outputDir, filename);
+        const pngBuffer = canvas.toBuffer('image/png');
+        await writeFile(outputPath, pngBuffer);
+
+        pngFiles.push({
+          name: filename,
+          url: `/api/download/${timestamp}/${filename}`,
+        });
       }
 
       // Clean up uploaded PDF
@@ -76,7 +101,7 @@ export async function POST(request: NextRequest) {
         await unlink(uploadPath);
       }
       throw new Error(
-        `PDF変換に失敗しました。poppler-utilsがインストールされているか確認してください: ${(error as Error).message}`
+        `PDF変換に失敗しました: ${(error as Error).message}`
       );
     }
   } catch (error) {

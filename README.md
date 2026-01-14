@@ -17,23 +17,14 @@ PDFファイルをアップロードして高品質なPNG画像に変換する�
 
 ## インストール
 
-### 1. poppler-utilsのインストール
+### 1. 依存関係のインストール
 
-**macOS:**
+**macOS (ローカル開発の場合、オプション):**
 ```bash
 brew install poppler
 ```
 
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install poppler-utils
-```
-
-**Windows:**
-[poppler for Windows](http://blog.alivate.com.au/poppler-windows/)からダウンロードしてインストール
-
-### 2. 依存関係のインストール
-
+**プロジェクトの依存関係:**
 ```bash
 npm install
 ```
@@ -69,7 +60,7 @@ npm start
 - **Frontend**: Next.js 15 + React 19 + TypeScript
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
-- **PDF Conversion**: poppler-utils (pdftoppm)
+- **PDF Conversion**: PDF.js + Canvas (サーバーレス対応)
 - **File Archive**: archiver
 - **File Upload**: multer
 
