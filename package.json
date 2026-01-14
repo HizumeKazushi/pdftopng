@@ -8,13 +8,13 @@
     "start": "next start"
   },
   "dependencies": {
+    "@cantoo/pdf-lib": "^2.5.3",
     "archiver": "^7.0.1",
     "canvas": "^3.2.1",
     "lucide-react": "^0.468.0",
     "multer": "^2.0.2",
     "next": "^15.1.6",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.4.530",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "^0.34.5"

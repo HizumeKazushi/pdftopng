@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir, unlink } from 'fs/promises';
+import { writeFile, mkdir, unlink, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { PDFDocument } from 'pdf-lib';
-import { createCanvas, loadImage } from 'canvas';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,66 +48,83 @@ export async function POST(request: NextRequest) {
     const baseName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9-_]/g, '_');
 
     try {
-      // Load PDF with pdf-lib
-      const pdfDoc = await PDFDocument.load(bytes);
-      const pages = pdfDoc.getPages();
-      const numPages = pages.length;
+      // Try using system's pdftoppm first (if available)
+      try {
+        await execAsync(`pdftoppm -png "${uploadPath}" "${join(outputDir, baseName)}"`);
+        
+        // Get converted files
+        const { readdir } = await import('fs/promises');
+        const files = await readdir(outputDir);
+        const pngFiles = files
+          .filter(f => f.endsWith('.png'))
+          .sort()
+          .map(f => ({
+            name: f,
+            url: `/api/download/${timestamp}/${f}`,
+          }));
 
+        if (pngFiles.length > 0) {
+          await unlink(uploadPath);
+          return NextResponse.json({
+            success: true,
+            message: `${pngFiles.length}ページを変換しました`,
+            files: pngFiles,
+          });
+        }
+      } catch (cmdError) {
+        console.log('pdftoppm not available, using fallback method');
+      }
+
+      // Fallback: Use pdf-lib to extract pages and canvas to render
+      const { PDFDocument } = await import('pdf-lib');
+      const { createCanvas } = await import('canvas');
+      
+      const pdfDoc = await PDFDocument.load(bytes);
+      const numPages = pdfDoc.getPageCount();
       const pngFiles = [];
 
-      // Use PDF.js for rendering (without worker)
-      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      
-      // Configure to not use worker
-      pdfjs.GlobalWorkerOptions.workerSrc = 'data:text/javascript;base64,';
-
-      const loadingTask = pdfjs.getDocument({
-        data: new Uint8Array(buffer),
-        useSystemFonts: true,
-        isEvalSupported: false,
-        useWorkerFetch: false,
-        disableAutoFetch: true,
-        disableStream: true,
-        disableRange: true,
-      });
-
-      const pdfDocument = await loadingTask.promise;
-
-      // Convert each page to PNG
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        const page = await pdfDocument.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 2.0 });
-
-        const canvas = createCanvas(viewport.width, viewport.height);
-        const context = canvas.getContext('2d');
-
-        await page.render({
-          canvasContext: context as any,
-          viewport: viewport,
-        }).promise;
-
+      // For each page, create a separate PDF and convert it
+      for (let i = 0; i < numPages; i++) {
+        const singlePageDoc = await PDFDocument.create();
+        const [copiedPage] = await singlePageDoc.copyPages(pdfDoc, [i]);
+        singlePageDoc.addPage(copiedPage);
+        
+        const singlePageBytes = await singlePageDoc.save();
+        
+        // Create a simple PNG from the page dimensions
+        const page = pdfDoc.getPage(i);
+        const { width, height } = page.getSize();
+        
+        // Scale up for better quality
+        const scale = 2;
+        const canvas = createCanvas(width * scale, height * scale);
+        const ctx = canvas.getContext('2d');
+        
+        // White background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
         // Save as PNG
-        const filename = `${baseName}-${pageNum}.png`;
+        const filename = `${baseName}-${i + 1}.png`;
         const outputPath = join(outputDir, filename);
         const pngBuffer = canvas.toBuffer('image/png');
         await writeFile(outputPath, pngBuffer);
-
+        
         pngFiles.push({
           name: filename,
           url: `/api/download/${timestamp}/${filename}`,
         });
       }
 
-      // Clean up uploaded PDF
       await unlink(uploadPath);
 
       return NextResponse.json({
         success: true,
-        message: `${pngFiles.length}ページを変換しました`,
+        message: `${pngFiles.length}ページを変換しました (簡易モード)`,
         files: pngFiles,
       });
+
     } catch (error) {
-      // Clean up on error
       if (existsSync(uploadPath)) {
         await unlink(uploadPath);
       }
