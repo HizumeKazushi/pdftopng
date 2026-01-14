@@ -46,8 +46,10 @@ export async function POST(request: NextRequest) {
       const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
       const { createCanvas } = await import('canvas');
       
-      // Disable worker for server-side rendering
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      // Set worker source to empty to disable worker in Node.js
+      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+      }
 
       // Load PDF
       const loadingTask = pdfjsLib.getDocument({
@@ -55,6 +57,8 @@ export async function POST(request: NextRequest) {
         useSystemFonts: true,
         isEvalSupported: false,
         useWorkerFetch: false,
+        disableAutoFetch: true,
+        disableStream: true,
       });
       
       const pdfDocument = await loadingTask.promise;
