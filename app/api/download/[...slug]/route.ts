@@ -3,6 +3,14 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
+// Use /tmp for Vercel serverless
+const getTempDir = () => {
+  if (process.env.VERCEL) {
+    return '/tmp';
+  }
+  return process.cwd();
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string[] }> }
@@ -11,7 +19,8 @@ export async function GET(
     const { slug } = await params;
     const [folder, filename] = slug;
 
-    const filePath = join(process.cwd(), 'output', folder, filename);
+    const tempDir = getTempDir();
+    const filePath = join(tempDir, 'output', folder, filename);
 
     if (!existsSync(filePath)) {
       return NextResponse.json(

@@ -4,6 +4,14 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import archiver from 'archiver';
 
+// Use /tmp for Vercel serverless
+const getTempDir = () => {
+  if (process.env.VERCEL) {
+    return '/tmp';
+  }
+  return process.cwd();
+};
+
 export async function POST(request: NextRequest) {
   try {
     const { files } = await request.json();
@@ -15,6 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const tempDir = getTempDir();
     const archive = archiver('zip', {
       zlib: { level: 9 },
     });
@@ -24,7 +33,7 @@ export async function POST(request: NextRequest) {
       const urlParts = file.url.split('/');
       const folder = urlParts[urlParts.length - 2];
       const filename = urlParts[urlParts.length - 1];
-      const filePath = join(process.cwd(), 'output', folder, filename);
+      const filePath = join(tempDir, 'output', folder, filename);
 
       if (existsSync(filePath)) {
         const fileBuffer = await readFile(filePath);

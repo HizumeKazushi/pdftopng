@@ -11,6 +11,14 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+// Use /tmp for Vercel serverless, otherwise use project directory
+const getTempDir = () => {
+  if (process.env.VERCEL) {
+    return '/tmp';
+  }
+  return process.cwd();
+};
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -26,9 +34,11 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    const tempDir = getTempDir();
+    
     // Create directories if they don't exist
-    const uploadsDir = join(process.cwd(), 'uploads');
-    const outputBaseDir = join(process.cwd(), 'output');
+    const uploadsDir = join(tempDir, 'uploads');
+    const outputBaseDir = join(tempDir, 'output');
     
     if (!existsSync(uploadsDir)) {
       await mkdir(uploadsDir, { recursive: true });
