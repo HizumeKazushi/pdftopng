@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir, unlink, readFile } from 'fs/promises';
+import { writeFile, mkdir, unlink, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { exec } from 'child_process';
@@ -9,6 +9,7 @@ const execAsync = promisify(exec);
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,12 +49,17 @@ export async function POST(request: NextRequest) {
     const baseName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9-_]/g, '_');
 
     try {
-      // Try using system's pdftoppm first (if available)
+      // Try using system's pdftoppm first (for local development)
+      let usedPdftoppm = false;
       try {
+        await execAsync(`which pdftoppm`);
         await execAsync(`pdftoppm -png "${uploadPath}" "${join(outputDir, baseName)}"`);
-        
-        // Get converted files
-        const { readdir } = await import('fs/promises');
+        usedPdftoppm = true;
+      } catch {
+        console.log('pdftoppm not available, using mupdf');
+      }
+
+      if (usedPdftoppm) {
         const files = await readdir(outputDir);
         const pngFiles = files
           .filter(f => f.endsWith('.png'))
@@ -71,44 +77,35 @@ export async function POST(request: NextRequest) {
             files: pngFiles,
           });
         }
-      } catch (cmdError) {
-        console.log('pdftoppm not available, using fallback method');
       }
 
-      // Fallback: Use pdf-lib to extract pages and canvas to render
-      const { PDFDocument } = await import('pdf-lib');
-      const { createCanvas } = await import('canvas');
+      // Fallback: Use mupdf (works in Vercel)
+      const mupdf = await import('mupdf');
       
-      const pdfDoc = await PDFDocument.load(bytes);
-      const numPages = pdfDoc.getPageCount();
+      const doc = mupdf.Document.openDocument(buffer, 'application/pdf');
+      const numPages = doc.countPages();
       const pngFiles = [];
 
-      // For each page, create a separate PDF and convert it
       for (let i = 0; i < numPages; i++) {
-        const singlePageDoc = await PDFDocument.create();
-        const [copiedPage] = await singlePageDoc.copyPages(pdfDoc, [i]);
-        singlePageDoc.addPage(copiedPage);
+        const page = doc.loadPage(i);
+        const bounds = page.getBounds();
+        const width = bounds[2] - bounds[0];
+        const height = bounds[3] - bounds[1];
         
-        const singlePageBytes = await singlePageDoc.save();
-        
-        // Create a simple PNG from the page dimensions
-        const page = pdfDoc.getPage(i);
-        const { width, height } = page.getSize();
-        
-        // Scale up for better quality
+        // Scale for better quality (2x)
         const scale = 2;
-        const canvas = createCanvas(width * scale, height * scale);
-        const ctx = canvas.getContext('2d');
+        const pixmap = page.toPixmap(
+          mupdf.Matrix.scale(scale, scale),
+          mupdf.ColorSpace.DeviceRGB,
+          false,
+          true
+        );
         
-        // White background
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const pngData = pixmap.asPNG();
         
-        // Save as PNG
         const filename = `${baseName}-${i + 1}.png`;
         const outputPath = join(outputDir, filename);
-        const pngBuffer = canvas.toBuffer('image/png');
-        await writeFile(outputPath, pngBuffer);
+        await writeFile(outputPath, pngData);
         
         pngFiles.push({
           name: filename,
@@ -120,7 +117,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `${pngFiles.length}ページを変換しました (簡易モード)`,
+        message: `${pngFiles.length}ページを変換しました`,
         files: pngFiles,
       });
 
