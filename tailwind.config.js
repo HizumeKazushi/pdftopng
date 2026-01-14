@@ -6,7 +6,11 @@ module.exports = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        zen: ['"Zen Kaku Gothic New"', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 }
