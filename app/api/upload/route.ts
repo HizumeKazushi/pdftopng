@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { PDFDocument } from 'pdf-lib';
+import { createCanvas, loadImage } from 'canvas';
 
-// Dynamic import for PDF.js to avoid build issues
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -42,29 +43,30 @@ export async function POST(request: NextRequest) {
     const baseName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9-_]/g, '_');
 
     try {
-      // Dynamically import PDF.js and Canvas
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      const { createCanvas } = await import('canvas');
-      
-      // Set worker source to empty to disable worker in Node.js
-      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
-      }
+      // Load PDF with pdf-lib
+      const pdfDoc = await PDFDocument.load(bytes);
+      const pages = pdfDoc.getPages();
+      const numPages = pages.length;
 
-      // Load PDF
-      const loadingTask = pdfjsLib.getDocument({
+      const pngFiles = [];
+
+      // Use PDF.js for rendering (without worker)
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      
+      // Configure to not use worker
+      pdfjs.GlobalWorkerOptions.workerSrc = 'data:text/javascript;base64,';
+
+      const loadingTask = pdfjs.getDocument({
         data: new Uint8Array(buffer),
         useSystemFonts: true,
         isEvalSupported: false,
         useWorkerFetch: false,
         disableAutoFetch: true,
         disableStream: true,
+        disableRange: true,
       });
-      
-      const pdfDocument = await loadingTask.promise;
-      const numPages = pdfDocument.numPages;
 
-      const pngFiles = [];
+      const pdfDocument = await loadingTask.promise;
 
       // Convert each page to PNG
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
@@ -74,12 +76,10 @@ export async function POST(request: NextRequest) {
         const canvas = createCanvas(viewport.width, viewport.height);
         const context = canvas.getContext('2d');
 
-        const renderContext = {
+        await page.render({
           canvasContext: context as any,
           viewport: viewport,
-        };
-
-        await page.render(renderContext).promise;
+        }).promise;
 
         // Save as PNG
         const filename = `${baseName}-${pageNum}.png`;
