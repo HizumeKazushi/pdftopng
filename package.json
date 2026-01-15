@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "archiver": "^7.0.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "multer": "^2.0.2",
     "mupdf": "^1.27.0",

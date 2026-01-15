@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { FileText, Paperclip, Image, Upload, Download } from 'lucide-react';
+import { FileText, Paperclip, Image, Download } from 'lucide-react';
+import JSZip from 'jszip';
 
 interface ConvertedFile {
   name: string;
-  url: string;
+  data: string; // Base64 data URL
 }
 
 export default function Home() {
@@ -78,19 +79,28 @@ export default function Home() {
     }
   };
 
+  const handleDownloadSingle = (file: ConvertedFile) => {
+    const a = document.createElement('a');
+    a.href = file.data;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleDownloadAll = async () => {
     if (!result) return;
 
     try {
-      const response = await fetch('/api/download/all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: result.files }),
-      });
+      const zip = new JSZip();
 
-      if (!response.ok) throw new Error('一括ダウンロードに失敗しました');
+      for (const file of result.files) {
+        // Extract base64 data from data URL
+        const base64Data = file.data.split(',')[1];
+        zip.file(file.name, base64Data, { base64: true });
+      }
 
-      const blob = await response.blob();
+      const blob = await zip.generateAsync({ type: 'blob' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -109,12 +119,8 @@ export default function Home() {
       <div className="max-w-2xl mx-auto px-6 py-16">
         {/* Header */}
         <div className="mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
-            PDF to PNG
-          </h1>
-          <p className="mt-2 text-gray-500 text-lg">
-            PDFファイルをPNG画像に変換
-          </p>
+          <h1 className="text-4xl font-bold text-gray-900 tracking-tight">PDF to PNG</h1>
+          <p className="mt-2 text-gray-500 text-lg">PDFファイルをPNG画像に変換</p>
         </div>
 
         {/* Upload Area */}
@@ -126,23 +132,12 @@ export default function Home() {
           className={`
             border border-dashed rounded-lg p-12 text-center cursor-pointer
             transition-colors duration-150
-            ${isDragging 
-              ? 'border-gray-900 bg-gray-50' 
-              : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-            }
+            ${isDragging ? 'border-gray-900 bg-gray-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}
           `}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
+          <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileSelect} className="hidden" />
           <FileText className="w-10 h-10 mx-auto mb-4 text-gray-400" strokeWidth={1.5} />
-          <p className="text-gray-700 font-medium">
-            ドラッグ&ドロップ、またはクリックして選択
-          </p>
+          <p className="text-gray-700 font-medium">ドラッグ&ドロップ、またはクリックして選択</p>
           <p className="text-gray-400 text-sm mt-1">PDF形式のみ</p>
         </div>
 
@@ -154,9 +149,7 @@ export default function Home() {
                 <Paperclip className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
                 <span className="text-gray-900 font-medium">{file.name}</span>
               </div>
-              <span className="text-gray-400 text-sm">
-                {(file.size / 1024 / 1024).toFixed(2)} MB
-              </span>
+              <span className="text-gray-400 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
             </div>
           </div>
         )}
@@ -167,17 +160,30 @@ export default function Home() {
           disabled={!file || converting}
           className={`
             w-full mt-6 py-3 rounded-lg font-medium transition-all duration-150
-            ${!file || converting
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-950'
+            ${
+              !file || converting
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-950'
             }
           `}
         >
           {converting ? (
             <span className="flex items-center justify-center gap-2">
               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
               </svg>
               変換中...
             </span>
@@ -197,9 +203,7 @@ export default function Home() {
         {result && (
           <div className="mt-8">
             <div className="flex items-center justify-between mb-4">
-              <p className="text-gray-500 text-sm">
-                {result.message}
-              </p>
+              <p className="text-gray-500 text-sm">{result.message}</p>
               <button
                 onClick={handleDownloadAll}
                 className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 underline underline-offset-2"
@@ -219,13 +223,12 @@ export default function Home() {
                     <Image className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
                     <span className="text-gray-700">{file.name}</span>
                   </div>
-                  <a
-                    href={file.url}
-                    download
+                  <button
+                    onClick={() => handleDownloadSingle(file)}
                     className="text-sm text-gray-500 hover:text-gray-900 underline underline-offset-2"
                   >
                     ダウンロード
-                  </a>
+                  </button>
                 </div>
               ))}
             </div>
@@ -234,9 +237,7 @@ export default function Home() {
 
         {/* Footer */}
         <div className="mt-16 pt-8 border-t border-gray-100">
-          <p className="text-gray-400 text-sm text-center">
-            PDFの各ページを個別のPNG画像に変換します
-          </p>
+          <p className="text-gray-400 text-sm text-center">PDFの各ページを個別のPNG画像に変換します</p>
         </div>
       </div>
     </div>

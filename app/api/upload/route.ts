@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir, unlink, readdir } from 'fs/promises';
+import { writeFile, mkdir, unlink, readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { exec } from 'child_process';
@@ -25,21 +25,18 @@ export async function POST(request: NextRequest) {
     const file = formData.get('pdf') as File;
 
     if (!file) {
-      return NextResponse.json(
-        { error: 'PDFファイルをアップロードしてください' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'PDFファイルをアップロードしてください' }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
     const tempDir = getTempDir();
-    
+
     // Create directories if they don't exist
     const uploadsDir = join(tempDir, 'uploads');
     const outputBaseDir = join(tempDir, 'output');
-    
+
     if (!existsSync(uploadsDir)) {
       await mkdir(uploadsDir, { recursive: true });
     }
@@ -71,13 +68,20 @@ export async function POST(request: NextRequest) {
 
       if (usedPdftoppm) {
         const files = await readdir(outputDir);
-        const pngFiles = files
-          .filter(f => f.endsWith('.png'))
-          .sort()
-          .map(f => ({
-            name: f,
-            url: `/api/download/${timestamp}/${f}`,
-          }));
+        const pngFiles = await Promise.all(
+          files
+            .filter((f) => f.endsWith('.png'))
+            .sort()
+            .map(async (f) => {
+              const filePath = join(outputDir, f);
+              const fileBuffer = await readFile(filePath);
+              const base64 = fileBuffer.toString('base64');
+              return {
+                name: f,
+                data: `data:image/png;base64,${base64}`,
+              };
+            })
+        );
 
         if (pngFiles.length > 0) {
           await unlink(uploadPath);
@@ -91,7 +95,7 @@ export async function POST(request: NextRequest) {
 
       // Fallback: Use mupdf (works in Vercel)
       const mupdf = await import('mupdf');
-      
+
       const doc = mupdf.Document.openDocument(buffer, 'application/pdf');
       const numPages = doc.countPages();
       const pngFiles = [];
@@ -101,25 +105,20 @@ export async function POST(request: NextRequest) {
         const bounds = page.getBounds();
         const width = bounds[2] - bounds[0];
         const height = bounds[3] - bounds[1];
-        
+
         // Scale for better quality (2x)
         const scale = 2;
-        const pixmap = page.toPixmap(
-          mupdf.Matrix.scale(scale, scale),
-          mupdf.ColorSpace.DeviceRGB,
-          false,
-          true
-        );
-        
+        const pixmap = page.toPixmap(mupdf.Matrix.scale(scale, scale), mupdf.ColorSpace.DeviceRGB, false, true);
+
         const pngData = pixmap.asPNG();
-        
+
+        // Convert to Base64 directly without saving to disk
+        const base64 = Buffer.from(pngData).toString('base64');
         const filename = `${baseName}-${i + 1}.png`;
-        const outputPath = join(outputDir, filename);
-        await writeFile(outputPath, pngData);
-        
+
         pngFiles.push({
           name: filename,
-          url: `/api/download/${timestamp}/${filename}`,
+          data: `data:image/png;base64,${base64}`,
         });
       }
 
@@ -130,21 +129,15 @@ export async function POST(request: NextRequest) {
         message: `${pngFiles.length}ページを変換しました`,
         files: pngFiles,
       });
-
     } catch (error) {
       if (existsSync(uploadPath)) {
         await unlink(uploadPath);
       }
       console.error('PDF conversion error:', error);
-      throw new Error(
-        `PDF変換に失敗しました: ${(error as Error).message}`
-      );
+      throw new Error(`PDF変換に失敗しました: ${(error as Error).message}`);
     }
   } catch (error) {
     console.error('変換エラー:', error);
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
