@@ -1,9 +1,12 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "PDF to PNG Converter",
-  description: "Convert PDF files to PNG images",
+  title: 'PDFtoPNG',
+  description: 'PDFファイルをPNG画像に変換',
+  icons: {
+    icon: '/icon.png',
+  },
 };
 
 export default function RootLayout({
@@ -16,11 +19,12 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className="antialiased font-zen">
-        {children}
-      </body>
+      <body className="antialiased font-zen">{children}</body>
     </html>
   );
 }
