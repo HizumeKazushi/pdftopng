@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
     const outputDir = join(outputBaseDir, `${timestamp}`);
     await mkdir(outputDir, { recursive: true });
 
-    const baseName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9-_]/g, '_');
+    // Keep Japanese characters, alphanumerics, hyphens, and underscores
+    const baseName = file.name.replace(/\.pdf$/i, '').replace(/[\/\\:*?"<>|]/g, '_');
 
     try {
       // Try using system's pdftoppm first (for local development)
