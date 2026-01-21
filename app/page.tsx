@@ -104,7 +104,9 @@ export default function Home() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'converted-images.zip';
+      // Use the original PDF filename without extension
+      const pdfNameWithoutExt = file?.name.replace(/\.pdf$/i, '') || 'converted-images';
+      a.download = `${pdfNameWithoutExt}.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
